@@ -1,0 +1,345 @@
+const express = require('express'); // Import Express framework
+const app = express(); // Create an instance of an Express application
+const fs = require('fs'); // Import filesystem module
+const csv = require('json2csv'); // Import json2csv module for CSV conversion
+const xlsx = require('xlsx'); // Import xlsx module for Excel conversion
+const { jsPDF } = require('jspdf'); // Import jsPDF for PDF generation
+const bodyParser = require('body-parser'); // Import body-parser for parsing JSON request bodies
+const cors = require('cors'); // Import cors module for handling CORS
+
+app.use(bodyParser.json()); // Middleware to parse JSON bodies
+
+// Enable CORS for all routes
+app.use(cors());
+
+// Endpoint to handle data conversion
+app.post('/api/convert', (req, res) => {
+  const { data, fileType } = req.body; // Destructure data and fileType from request body
+
+  // Validate input
+  if (!data || !fileType) {
+    return res.status(400).json({ error: 'Data and fileType are required' });
+  }
+
+  let convertedData;
+
+  try {
+    // Convert data based on fileType
+    if (fileType === 'CSV') {
+      const jsonData = JSON.parse(data); // Parse JSON data
+      const fields = Object.keys(jsonData[0]); // Get keys for CSV fields
+      convertedData = csv.parse(jsonData, { fields }); // Convert JSON to CSV
+    } else if (fileType === 'Excel') {
+      const jsonData = JSON.parse(data); // Parse JSON data
+      const worksheet = xlsx.utils.json_to_sheet(jsonData); // Convert JSON to Excel worksheet
+      const workbook = xlsx.utils.book_new(); // Create a new workbook
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Sheet1'); // Append worksheet to workbook
+      convertedData = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' }); // Write workbook to buffer
+    } else if (fileType === 'PDF') {
+      const jsonData = JSON.parse(data); // Parse JSON data
+      const doc = new jsPDF(); // Create a new jsPDF document
+      const tableColumn = Object.keys(jsonData[0]); // Get keys for table columns
+      const tableRows = jsonData.map(item => Object.values(item)); // Get values for table rows
+
+      // Add table to PDF with custom styles
+      doc.autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        styles: {
+          cellPadding: 3,
+          fontSize: 10,
+          halign: 'center',
+          valign: 'middle',
+          lineColor: [44, 62, 80],
+          lineWidth: 0.1,
+          textColor: [0, 0, 0],
+          fillColor: [255, 255, 255],
+          tableLineColor: [0, 0, 0],
+          tableLineWidth: 0.15
+        },
+        headStyles: {
+          fillColor: [44, 62, 80],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: {
+          fillColor: [240, 240, 240]
+        }
+      });
+
+      convertedData = doc.output('arraybuffer'); // Get the PDF as an array buffer
+    } else if (fileType === 'XML') {
+      const jsonData = JSON.parse(data); // Parse JSON data
+      const xml = json2xml(jsonData); // Convert JSON to XML (assuming you have a function to do this)
+      convertedData = Buffer.from(xml); // Convert XML to Buffer
+    } else if (fileType === 'TXT') {
+      const jsonData = JSON.parse(data); // Parse JSON data
+      convertedData = Buffer.from(JSON.stringify(jsonData, null, 2)); // Convert JSON to pretty-printed text
+    } else {
+      return res.status(400).json({ error: 'Invalid fileType' });
+    }
+
+    // Set appropriate Content-Type header
+    let contentType;
+    if (fileType === 'CSV') {
+      contentType = 'text/csv';
+    } else if (fileType === 'Excel') {
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    } else if (fileType === 'PDF') {
+      contentType = 'application/pdf';
+    } else if (fileType === 'XML') {
+      contentType = 'application/xml';
+    } else if (fileType === 'TXT') {
+      contentType = 'text/plain';
+    }
+
+    // Set Content-Disposition header for file download
+    res.set('Content-Type', contentType);
+    res.set('Content-Disposition', `attachment; filename="converted.${fileType === 'Excel' ? 'xlsx' : fileType.toLowerCase()}"`);
+
+    // Send the converted data as the response
+    res.send(convertedData);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred during conversion' });
+  }
+});
+
+app.listen(3000, () => {
+  console.log('Server is running on port 3000'); // Log server start message
+});
+
+
+
+{
+  "name": "data-conversion-backend",
+  "version": "1.0.0",
+  "description": "Backend for Data Conversion App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "json2csv": "^5.0.6",
+    "jspdf": "^2.4.0",
+    "xlsx": "^0.17.0"
+  }
+}
+
+
+
+import React, { useState, useRef } from 'react'; // Importing React and useState hook
+import axios from 'axios'; // Importing Axios for HTTP requests
+import './AppAdvanced.css'; // Importing CSS file for styling
+
+// Component for data conversion form
+const DataConversionForm = () => {
+  const [data, setData] = useState(''); // State for data input
+  const [fileType, setFileType] = useState(''); // State for selected file type
+  const [errorMessage, setErrorMessage] = useState(''); // State for error messages
+  const fileInputRef = useRef(null); // Reference to the file input element
+
+  // Handler for data textarea change
+  const handleDataChange = (e) => {
+    const newData = e.target.value;
+    setData(newData); // Update data state
+
+    // Clear error message if JSON data is updated
+    if (errorMessage && newData.trim() !== '') {
+      try {
+        JSON.parse(newData); // Try to parse the JSON
+        setErrorMessage(''); // Clear error message if JSON is valid
+      } catch (error) {
+        // Do nothing if JSON is invalid
+      }
+    }
+  };
+
+  // Handler for file input change (upload JSON file)
+  const handleFileChange = (e) => {
+    const file = e.target.files[0]; // Get the uploaded file
+    if (file && file.type === 'application/json') { // Validate if file is JSON
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setData(e.target.result); // Update data state with file content
+        setErrorMessage(''); // Clear error message
+      };
+      reader.readAsText(file); // Read file as text
+    } else {
+      setErrorMessage('Please upload a valid JSON file.'); // Display error message for invalid file type
+    }
+  };
+
+  // Handler for file type select change
+  const handleFileTypeChange = (e) => {
+    setFileType(e.target.value); // Update fileType state
+  };
+
+  // Handler for form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault(); // Prevent default form submission behavior
+
+    // Check for valid JSON format
+    try {
+      JSON.parse(data); // Try to parse the JSON
+    } catch (error) {
+      setErrorMessage('Invalid JSON format'); // Set error message if JSON is invalid
+      return;
+    }
+
+    try {
+      // Send data to the backend for conversion
+      const response = await axios.post('/api/convert', { data, fileType }, {
+        responseType: 'blob' // Set response type to blob
+      });
+
+      // Create a link element to download the file
+      const fileData = response.data;
+      const blob = new Blob([fileData], { type: response.headers['content-type'] });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `converted.${fileType === 'Excel' ? 'xlsx' : fileType.toLowerCase()}`;
+      link.click();
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      setData(''); // Clear data state
+    } catch (error) {
+      console.error('Error during conversion:', error);
+    }
+  };
+
+  return (
+    <div className="data-conversion-form">
+      <h1>Hackathon Data Conversion App</h1>
+      <form onSubmit={handleSubmit}>
+        <textarea
+          placeholder="Enter JSON data here..."
+          value={data}
+          onChange={handleDataChange}
+        />
+        <input
+          type="file"
+          accept="application/json"
+          onChange={handleFileChange}
+          ref={fileInputRef}
+        />
+        <select value={fileType} onChange={handleFileTypeChange}>
+          <option value="">Select file type</option>
+          <option value="CSV">CSV</option>
+          <option value="Excel">Excel</option>
+          <option value="PDF">PDF</option>
+          <option value="XML">XML</option>
+          <option value="TXT">TXT</option>
+        </select>
+        <button type="submit">Download</button>
+      </form>
+      {errorMessage && <div className="error-message">{errorMessage}</div>}
+    </div>
+  );
+};
+
+export default DataConversionForm;
+
+
+
+
+
+/* AppAdvanced.css */
+
+/* General styling for the form */
+.data-conversion-form {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f7f7f7;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.data-conversion-form h1 {
+  font-size: 2em;
+  margin-bottom: 20px;
+  text-align: center;
+  color: #333;
+}
+
+.data-conversion-form form {
+  display: flex;
+  flex-direction: column;
+}
+
+.data-conversion-form textarea {
+  min-height: 150px;
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1em;
+  resize: vertical;
+}
+
+.data-conversion-form input[type="file"] {
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1em;
+}
+
+.data-conversion-form select {
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1em;
+}
+
+.data-conversion-form button {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+}
+
+.data-conversion-form button:hover {
+  background-color: #0056b3;
+}
+
+.error-message {
+  margin-top: 20px;
+  padding: 10px;
+  color: #a94442;
+  background-color: #f2dede;
+  border: 1px solid #ebccd1;
+  border-radius: 4px;
+}
+
+/* PDF table styling */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table, th, td {
+  border: 1px solid #ddd;
+}
+
+th, td {
+  padding: 8px;
+  text-align: left;
+}
+
+th {
+  background-color: #007bff;
+  color: white;
+}
