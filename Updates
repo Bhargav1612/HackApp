@@ -1,27 +1,3 @@
-{
-  "name": "data-conversion-project",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "json2csv": "^6.0.0-alpha.2",
-    "pdfkit": "^0.15.0",
-    "pdfkit-table": "^0.1.99",
-    "xlsx": "^0.18.5",
-    "xml2js": "^0.6.2"
-  }
-}
-
-
-
 const express = require('express'); // Import Express framework
 const app = express(); // Create an instance of an Express application
 const fs = require('fs'); // Import filesystem module
@@ -29,12 +5,10 @@ const csv = require('json2csv'); // Import json2csv module for CSV conversion
 const xlsx = require('xlsx'); // Import xlsx module for Excel conversion
 const { jsPDF } = require('jspdf'); // Import jsPDF for PDF generation
 const bodyParser = require('body-parser'); // Import body-parser for parsing JSON request bodies
-const cors = require('cors'); // Import cors module for handling CORS
+const cors = require('cors'); // Import cors module
 
+app.use(cors()); // Use CORS middleware
 app.use(bodyParser.json()); // Middleware to parse JSON bodies
-
-// Enable CORS for all routes
-app.use(cors());
 
 // Endpoint to handle data conversion
 app.post('/api/convert', (req, res) => {
@@ -135,27 +109,7 @@ app.listen(3000, () => {
 
 
 
-{
-  "name": "data-conversion-backend",
-  "version": "1.0.0",
-  "description": "Backend for Data Conversion App",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "body-parser": "^1.19.0",
-    "cors": "^2.8.5",
-    "express": "^4.17.1",
-    "json2csv": "^5.0.6",
-    "jspdf": "^2.4.0",
-    "xlsx": "^0.17.0"
-  }
-}
-
-
-
-import React, { useState, useRef } from 'react'; // Importing React and useState hook
+import React, { useState, useRef } from 'react'; // Importing React and necessary hooks
 import axios from 'axios'; // Importing Axios for HTTP requests
 import './AppAdvanced.css'; // Importing CSS file for styling
 
@@ -164,7 +118,7 @@ const DataConversionForm = () => {
   const [data, setData] = useState(''); // State for data input
   const [fileType, setFileType] = useState(''); // State for selected file type
   const [errorMessage, setErrorMessage] = useState(''); // State for error messages
-  const fileInputRef = useRef(null); // Reference to the file input element
+  const fileInputRef = useRef(); // Reference to the file input element
 
   // Handler for data textarea change
   const handleDataChange = (e) => {
@@ -214,46 +168,45 @@ const DataConversionForm = () => {
       return;
     }
 
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = null;
+    }
+
+    // Make Axios POST request to backend API
     try {
-      // Send data to the backend for conversion
-      const response = await axios.post('/api/convert', { data, fileType }, {
-        responseType: 'blob' // Set response type to blob
+      const response = await axios.post('http://localhost:3000/api/convert', {
+        data,
+        fileType,
       });
 
-      // Create a link element to download the file
-      const fileData = response.data;
-      const blob = new Blob([fileData], { type: response.headers['content-type'] });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `converted.${fileType === 'Excel' ? 'xlsx' : fileType.toLowerCase()}`;
-      link.click();
+      const fileData = response.data; // Get the response data
+      const blob = new Blob([fileData], { type: response.headers['content-type'] }); // Create a new Blob object
+      const url = URL.createObjectURL(blob); // Create a URL for the Blob object
+      const link = document.createElement('a'); // Create a new anchor element
+      link.href = url; // Set the href of the anchor to the Blob URL
+      link.download = `converted.${fileType === 'Excel' ? 'xlsx' : fileType.toLowerCase()}`; // Set the download attribute of the anchor
+      link.click(); // Programmatically click the anchor to trigger the download
 
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
       setData(''); // Clear data state
+      setFileType(''); // Clear fileType state
     } catch (error) {
-      console.error('Error during conversion:', error);
+      console.error(error);
+      setErrorMessage('An error occurred during conversion.'); // Set error message if Axios request fails
     }
   };
 
   return (
     <div className="data-conversion-form">
-      <h1>Hackathon Data Conversion App</h1>
+      <h1>Hackathon</h1>
       <form onSubmit={handleSubmit}>
         <textarea
-          placeholder="Enter JSON data here..."
           value={data}
           onChange={handleDataChange}
+          placeholder="Enter JSON data"
+          rows="10"
         />
-        <input
-          type="file"
-          accept="application/json"
-          onChange={handleFileChange}
-          ref={fileInputRef}
-        />
+        <input type="file" accept=".json" onChange={handleFileChange} ref={fileInputRef} />
         <select value={fileType} onChange={handleFileTypeChange}>
           <option value="">Select file type</option>
           <option value="CSV">CSV</option>
@@ -262,9 +215,9 @@ const DataConversionForm = () => {
           <option value="XML">XML</option>
           <option value="TXT">TXT</option>
         </select>
-        <button type="submit">Download</button>
+        <button type="submit">Convert</button>
       </form>
-      {errorMessage && <div className="error-message">{errorMessage}</div>}
+      {errorMessage && <p className="error-message">{errorMessage}</p>}
     </div>
   );
 };
@@ -273,25 +226,19 @@ export default DataConversionForm;
 
 
 
-
-
-/* AppAdvanced.css */
-
-/* General styling for the form */
 .data-conversion-form {
   max-width: 600px;
   margin: 0 auto;
   padding: 20px;
-  background-color: #f7f7f7;
   border-radius: 8px;
+  background-color: #f9f9f9;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 .data-conversion-form h1 {
-  font-size: 2em;
-  margin-bottom: 20px;
   text-align: center;
   color: #333;
+  font-size: 24px;
 }
 
 .data-conversion-form form {
@@ -300,39 +247,34 @@ export default DataConversionForm;
 }
 
 .data-conversion-form textarea {
-  min-height: 150px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   padding: 10px;
-  border: 1px solid #ddd;
+  font-size: 16px;
+  border: 1px solid #ccc;
   border-radius: 4px;
-  font-size: 1em;
   resize: vertical;
 }
 
 .data-conversion-form input[type="file"] {
-  margin-bottom: 20px;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1em;
+  margin-bottom: 10px;
 }
 
 .data-conversion-form select {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   padding: 10px;
-  border: 1px solid #ddd;
+  font-size: 16px;
+  border: 1px solid #ccc;
   border-radius: 4px;
-  font-size: 1em;
 }
 
 .data-conversion-form button {
-  padding: 10px 20px;
+  padding: 10px;
+  font-size: 16px;
   background-color: #007bff;
-  color: #fff;
+  color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 1em;
 }
 
 .data-conversion-form button:hover {
@@ -340,30 +282,8 @@ export default DataConversionForm;
 }
 
 .error-message {
-  margin-top: 20px;
-  padding: 10px;
-  color: #a94442;
-  background-color: #f2dede;
-  border: 1px solid #ebccd1;
-  border-radius: 4px;
-}
-
-/* PDF table styling */
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-table, th, td {
-  border: 1px solid #ddd;
-}
-
-th, td {
-  padding: 8px;
-  text-align: left;
-}
-
-th {
-  background-color: #007bff;
-  color: white;
+  color: red;
+  font-size: 14px;
+  margin-top: 10px;
+  text-align: center;
 }
