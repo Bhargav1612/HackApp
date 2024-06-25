@@ -1,3 +1,131 @@
+const express = require('express');
+const app = express();
+const csv = require('json2csv');
+const xlsx = require('xlsx');
+const { jsPDF } = require('jspdf');
+require('jspdf-autotable');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+
+app.use(cors());
+app.use(bodyParser.json());
+
+app.post('/api/convert', (req, res) => {
+  const { data, fileType } = req.body;
+
+  if (!data || !fileType) {
+    return res.status(400).json({ error: 'Data and fileType are required' });
+  }
+
+  let convertedData;
+
+  try {
+    const jsonData = JSON.parse(data);
+
+    if (fileType === 'CSV') {
+      const fields = Object.keys(jsonData[0]);
+      convertedData = csv.parse(jsonData, { fields });
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="converted.csv"');
+      res.send(Buffer.from(convertedData));
+
+    } else if (fileType === 'Excel') {
+      const worksheet = xlsx.utils.json_to_sheet(jsonData);
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+      const excelBuffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="converted.xlsx"');
+      res.send(excelBuffer);
+
+    } else if (fileType === 'PDF') {
+      const doc = new jsPDF();
+      const tableColumn = Object.keys(jsonData[0]);
+      const tableRows = jsonData.map(item => Object.values(item));
+
+      doc.autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        styles: {
+          cellPadding: 3,
+          fontSize: 10,
+          halign: 'center',
+          valign: 'middle',
+          lineColor: [0, 0, 0],
+          lineWidth: 0.1,
+          textColor: [0, 0, 0],
+          fillColor: [255, 255, 255],
+          tableLineColor: [0, 0, 0],
+          tableLineWidth: 0.15
+        },
+        headStyles: {
+          fillColor: [44, 62, 80],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: {
+          fillColor: [240, 240, 240]
+        }
+      });
+
+      convertedData = doc.output('arraybuffer');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="converted.pdf"');
+      res.send(Buffer.from(convertedData));
+
+    } else if (fileType === 'XML') {
+      const xml = jsonToXml(jsonData); // Assuming you have a function to do this
+      res.setHeader('Content-Type', 'application/xml');
+      res.setHeader('Content-Disposition', 'attachment; filename="converted.xml"');
+      res.send(Buffer.from(xml));
+
+    } else if (fileType === 'TXT') {
+      convertedData = jsonData.map(item => JSON.stringify(item)).join('\n');
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', 'attachment; filename="converted.txt"');
+      res.send(Buffer.from(convertedData));
+
+    } else {
+      return res.status(400).json({ error: 'Invalid fileType' });
+    }
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred during conversion' });
+  }
+});
+
+app.listen(3000, () => {
+  console.log('Server is running on port 3000');
+});
+
+// Helper function to convert JSON to XML
+function jsonToXml(jsonData) {
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<root>\n';
+  jsonData.forEach(item => {
+    xml += '  <item>\n';
+    Object.keys(item).forEach(key => {
+      xml += `    <${key}>${item[key]}</${key}>\n`;
+    });
+    xml += '  </item>\n';
+  });
+  xml += '</root>';
+  return xml;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 import React, { useState, useRef } from 'react'; // Importing React and necessary hooks
 import axios from 'axios'; // Importing Axios for HTTP requests
 import './AppAdvanced.css'; // Importing CSS file for styling
