@@ -1,126 +1,13 @@
-const express = require('express'); // Import Express framework
-const app = express(); // Create an instance of an Express application
-const fs = require('fs'); // Import filesystem module
-const csv = require('json2csv'); // Import json2csv module for CSV conversion
-const xlsx = require('xlsx'); // Import xlsx module for Excel conversion
-const { jsPDF } = require('jspdf'); // Import jsPDF for PDF generation
-const bodyParser = require('body-parser'); // Import body-parser for parsing JSON request bodies
-const cors = require('cors'); // Import cors module
-
-app.use(cors()); // Use CORS middleware
-app.use(bodyParser.json()); // Middleware to parse JSON bodies
-
-// Endpoint to handle data conversion
-app.post('/api/convert', (req, res) => {
-  const { data, fileType } = req.body; // Destructure data and fileType from request body
-
-  // Validate input
-  if (!data || !fileType) {
-    return res.status(400).json({ error: 'Data and fileType are required' });
-  }
-
-  let convertedData;
-
-  try {
-    // Convert data based on fileType
-    if (fileType === 'CSV') {
-      const jsonData = JSON.parse(data); // Parse JSON data
-      const fields = Object.keys(jsonData[0]); // Get keys for CSV fields
-      convertedData = csv.parse(jsonData, { fields }); // Convert JSON to CSV
-    } else if (fileType === 'Excel') {
-      const jsonData = JSON.parse(data); // Parse JSON data
-      const worksheet = xlsx.utils.json_to_sheet(jsonData); // Convert JSON to Excel worksheet
-      const workbook = xlsx.utils.book_new(); // Create a new workbook
-      xlsx.utils.book_append_sheet(workbook, worksheet, 'Sheet1'); // Append worksheet to workbook
-      convertedData = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' }); // Write workbook to buffer
-    } else if (fileType === 'PDF') {
-      const jsonData = JSON.parse(data); // Parse JSON data
-      const doc = new jsPDF(); // Create a new jsPDF document
-      const tableColumn = Object.keys(jsonData[0]); // Get keys for table columns
-      const tableRows = jsonData.map(item => Object.values(item)); // Get values for table rows
-
-      // Add table to PDF with custom styles
-      doc.autoTable({
-        head: [tableColumn],
-        body: tableRows,
-        styles: {
-          cellPadding: 3,
-          fontSize: 10,
-          halign: 'center',
-          valign: 'middle',
-          lineColor: [44, 62, 80],
-          lineWidth: 0.1,
-          textColor: [0, 0, 0],
-          fillColor: [255, 255, 255],
-          tableLineColor: [0, 0, 0],
-          tableLineWidth: 0.15
-        },
-        headStyles: {
-          fillColor: [44, 62, 80],
-          textColor: [255, 255, 255],
-          fontStyle: 'bold'
-        },
-        alternateRowStyles: {
-          fillColor: [240, 240, 240]
-        }
-      });
-
-      convertedData = doc.output('arraybuffer'); // Get the PDF as an array buffer
-    } else if (fileType === 'XML') {
-      const jsonData = JSON.parse(data); // Parse JSON data
-      const xml = json2xml(jsonData); // Convert JSON to XML (assuming you have a function to do this)
-      convertedData = Buffer.from(xml); // Convert XML to Buffer
-    } else if (fileType === 'TXT') {
-      const jsonData = JSON.parse(data); // Parse JSON data
-      convertedData = Buffer.from(JSON.stringify(jsonData, null, 2)); // Convert JSON to pretty-printed text
-    } else {
-      return res.status(400).json({ error: 'Invalid fileType' });
-    }
-
-    // Set appropriate Content-Type header
-    let contentType;
-    if (fileType === 'CSV') {
-      contentType = 'text/csv';
-    } else if (fileType === 'Excel') {
-      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    } else if (fileType === 'PDF') {
-      contentType = 'application/pdf';
-    } else if (fileType === 'XML') {
-      contentType = 'application/xml';
-    } else if (fileType === 'TXT') {
-      contentType = 'text/plain';
-    }
-
-    // Set Content-Disposition header for file download
-    res.set('Content-Type', contentType);
-    res.set('Content-Disposition', `attachment; filename="converted.${fileType === 'Excel' ? 'xlsx' : fileType.toLowerCase()}"`);
-
-    // Send the converted data as the response
-    res.send(convertedData);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'An error occurred during conversion' });
-  }
-});
-
-app.listen(3000, () => {
-  console.log('Server is running on port 3000'); // Log server start message
-});
-
-
-
 import React, { useState, useRef } from 'react'; // Importing React and necessary hooks
 import axios from 'axios'; // Importing Axios for HTTP requests
 import './AppAdvanced.css'; // Importing CSS file for styling
 
-// Component for data conversion form
 const DataConversionForm = () => {
   const [data, setData] = useState(''); // State for data input
   const [fileType, setFileType] = useState(''); // State for selected file type
   const [errorMessage, setErrorMessage] = useState(''); // State for error messages
   const fileInputRef = useRef(); // Reference to the file input element
 
-  // Handler for data textarea change
   const handleDataChange = (e) => {
     const newData = e.target.value;
     setData(newData); // Update data state
@@ -136,7 +23,6 @@ const DataConversionForm = () => {
     }
   };
 
-  // Handler for file input change (upload JSON file)
   const handleFileChange = (e) => {
     const file = e.target.files[0]; // Get the uploaded file
     if (file && file.type === 'application/json') { // Validate if file is JSON
@@ -151,12 +37,10 @@ const DataConversionForm = () => {
     }
   };
 
-  // Handler for file type select change
   const handleFileTypeChange = (e) => {
     setFileType(e.target.value); // Update fileType state
   };
 
-  // Handler for form submission
   const handleSubmit = async (e) => {
     e.preventDefault(); // Prevent default form submission behavior
 
@@ -192,7 +76,7 @@ const DataConversionForm = () => {
       setFileType(''); // Clear fileType state
     } catch (error) {
       console.error(error);
-      setErrorMessage('An error occurred during conversion.'); // Set error message if Axios request fails
+      setErrorMessage(`An error occurred during conversion: ${error.response.data.error}`); // Set error message if Axios request fails
     }
   };
 
@@ -201,13 +85,27 @@ const DataConversionForm = () => {
       <h1>Hackathon</h1>
       <form onSubmit={handleSubmit}>
         <textarea
+          id="data"
+          name="data"
           value={data}
           onChange={handleDataChange}
           placeholder="Enter JSON data"
           rows="10"
         />
-        <input type="file" accept=".json" onChange={handleFileChange} ref={fileInputRef} />
-        <select value={fileType} onChange={handleFileTypeChange}>
+        <input
+          type="file"
+          id="fileInput"
+          name="fileInput"
+          accept=".json"
+          onChange={handleFileChange}
+          ref={fileInputRef}
+        />
+        <select
+          id="fileType"
+          name="fileType"
+          value={fileType}
+          onChange={handleFileTypeChange}
+        >
           <option value="">Select file type</option>
           <option value="CSV">CSV</option>
           <option value="Excel">Excel</option>
@@ -224,6 +122,152 @@ const DataConversionForm = () => {
 
 export default DataConversionForm;
 
+
+const express = require('express');
+const app = express();
+const fs = require('fs');
+const csv = require('json2csv');
+const xlsx = require('xlsx');
+const { jsPDF } = require('jspdf');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+
+app.use(cors());
+app.use(bodyParser.json());
+
+app.post('/api/convert', (req, res) => {
+  const { data, fileType } = req.body;
+
+  if (!data || !fileType) {
+    return res.status(400).json({ error: 'Data and fileType are required' });
+  }
+
+  let convertedData;
+
+  try {
+    if (fileType === 'CSV') {
+      const jsonData = JSON.parse(data);
+      const fields = Object.keys(jsonData[0]);
+      convertedData = csv.parse(jsonData, { fields });
+    } else if (fileType === 'Excel') {
+      const jsonData = JSON.parse(data);
+      const worksheet = xlsx.utils.json_to_sheet(jsonData);
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+      convertedData = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    } else if (fileType === 'PDF') {
+      const jsonData = JSON.parse(data);
+      const doc = new jsPDF();
+      const tableColumn = Object.keys(jsonData[0]);
+      const tableRows = jsonData.map(item => Object.values(item));
+
+      // Add table to PDF with custom styles
+      doc.autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        styles: {
+          cellPadding: 3,
+          fontSize: 10,
+          halign: 'center',
+          valign: 'middle',
+          lineColor: [44, 62, 80],
+          lineWidth: 0.1,
+          textColor: [0, 0, 0],
+          fillColor: [255, 255, 255],
+          tableLineColor: [0, 0, 0],
+          tableLineWidth: 0.15
+        },
+        headStyles: {
+          fillColor: [44, 62, 80],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: {
+          fillColor: [240, 240, 240]
+        }
+      });
+
+      convertedData = doc.output('arraybuffer');
+    } else if (fileType === 'XML') {
+      const jsonData = JSON.parse(data);
+      const xml = json2xml(jsonData); // Assuming you have a function to do this
+      convertedData = Buffer.from(xml);
+    } else if (fileType === 'TXT') {
+      const jsonData = JSON.parse(data);
+      convertedData = Buffer.from(JSON.stringify(jsonData, null, 2));
+    } else {
+      return res.status(400).json({ error: 'Invalid fileType' });
+    }
+
+    let contentType;
+    if (fileType === 'CSV') {
+      contentType = 'text/csv';
+    } else if (fileType === 'Excel') {
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    } else if (fileType === 'PDF') {
+      contentType = 'application/pdf';
+    } else if (fileType === 'XML') {
+      contentType = 'application/xml';
+    } else if (fileType === 'TXT') {
+      contentType = 'text/plain';
+    }
+
+    res.set('Content-Type', contentType);
+    res.set('Content-Disposition', `attachment; filename="converted.${fileType === 'Excel' ? 'xlsx' : fileType.toLowerCase()}"`);
+    res.send(convertedData);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred during conversion' });
+  }
+});
+
+app.listen(3000, () => {
+  console.log('Server is running on port 3000');
+});
+
+{
+  "name": "data-conversion-app",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "axios": "^1.7.2",
+    "express": "^4.17.1",
+    "json2csv": "^5.0.6",
+    "jspdf": "^2.4.0",
+    "xlsx": "^0.17.0",
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-scripts": "5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "proxy": "http://localhost:3000"
+}
 
 
 .data-conversion-form {
@@ -257,6 +301,9 @@ export default DataConversionForm;
 
 .data-conversion-form input[type="file"] {
   margin-bottom: 10px;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 
 .data-conversion-form select {
@@ -287,3 +334,4 @@ export default DataConversionForm;
   margin-top: 10px;
   text-align: center;
 }
+
