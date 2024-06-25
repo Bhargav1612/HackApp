@@ -155,7 +155,7 @@ app.post('/api/convert', (req, res) => {
       convertedData = csv.parse(jsonData, { fields });
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="converted.csv"');
-      res.send(convertedData);
+      res.send(Buffer.from(convertedData));
 
     } else if (fileType === 'Excel') {
       const worksheet = xlsx.utils.json_to_sheet(jsonData);
@@ -208,7 +208,7 @@ app.post('/api/convert', (req, res) => {
       res.send(Buffer.from(xml));
 
     } else if (fileType === 'TXT') {
-      convertedData = JSON.stringify(jsonData, null, 2);
+      convertedData = jsonData.map(item => JSON.stringify(item)).join('\n');
       res.setHeader('Content-Type', 'text/plain');
       res.setHeader('Content-Disposition', 'attachment; filename="converted.txt"');
       res.send(Buffer.from(convertedData));
