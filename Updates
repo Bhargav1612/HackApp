@@ -54,7 +54,7 @@ const DataConversionForm = () => {
 
     // Reset file input
     if (fileInputRef.current) {
-      fileInputRef.current.value = null;
+      fileInputRef.current.value = null; // Reset the file input field
     }
 
     // Make Axios POST request to backend API
@@ -74,9 +74,10 @@ const DataConversionForm = () => {
 
       setData(''); // Clear data state
       setFileType(''); // Clear fileType state
+      setErrorMessage(''); // Clear error message
     } catch (error) {
       console.error(error);
-      setErrorMessage(`An error occurred during conversion: ${error.response.data.error}`); // Set error message if Axios request fails
+      setErrorMessage(`An error occurred during conversion: ${error.response?.data?.error || error.message}`); // Set error message if Axios request fails
     }
   };
 
@@ -123,12 +124,14 @@ const DataConversionForm = () => {
 export default DataConversionForm;
 
 
+
 const express = require('express');
 const app = express();
 const fs = require('fs');
 const csv = require('json2csv');
 const xlsx = require('xlsx');
 const { jsPDF } = require('jspdf');
+require('jspdf-autotable');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
@@ -161,7 +164,6 @@ app.post('/api/convert', (req, res) => {
       const tableColumn = Object.keys(jsonData[0]);
       const tableRows = jsonData.map(item => Object.values(item));
 
-      // Add table to PDF with custom styles
       doc.autoTable({
         head: [tableColumn],
         body: tableRows,
@@ -170,21 +172,19 @@ app.post('/api/convert', (req, res) => {
           fontSize: 10,
           halign: 'center',
           valign: 'middle',
-          lineColor: [44, 62, 80],
+          lineColor: [0, 0, 0],
           lineWidth: 0.1,
-          textColor: [0, 0, 0],
-          fillColor: [255, 255, 255],
-          tableLineColor: [0, 0, 0],
-          tableLineWidth: 0.15
         },
         headStyles: {
           fillColor: [44, 62, 80],
           textColor: [255, 255, 255],
-          fontStyle: 'bold'
+          fontStyle: 'bold',
         },
         alternateRowStyles: {
-          fillColor: [240, 240, 240]
-        }
+          fillColor: [240, 240, 240],
+        },
+        tableLineColor: [0, 0, 0],
+        tableLineWidth: 0.15,
       });
 
       convertedData = doc.output('arraybuffer');
@@ -224,6 +224,7 @@ app.post('/api/convert', (req, res) => {
 app.listen(3000, () => {
   console.log('Server is running on port 3000');
 });
+
 
 {
   "name": "data-conversion-app",
@@ -268,6 +269,7 @@ app.listen(3000, () => {
   },
   "proxy": "http://localhost:3000"
 }
+
 
 
 .data-conversion-form {
@@ -334,4 +336,3 @@ app.listen(3000, () => {
   margin-top: 10px;
   text-align: center;
 }
-
